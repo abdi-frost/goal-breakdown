@@ -4,12 +4,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# This module exposes a single function `generate_steps(goal: str)` which
-# returns a dict: {"steps": [s1..s5], "complexity": int}
-# It will try to call Google's Generative AI (Gemini) if configured via
-# `GOOGLE_API_KEY` or `GEMINI_API_KEY`. If not available, a simple
-# deterministic fallback generator is used so the backend works offline.
-
 def _fallback_generate(goal: str) -> Dict[str, Any]:
     goal_short = goal.strip().rstrip('.')
     steps: List[str] = [
@@ -29,46 +23,70 @@ def generate_steps(goal: str) -> Dict[str, Any]:
 
     Preferred: call Google Generative API if configured. Otherwise use fallback.
     """
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY") or 'GEMINI_API_KEY_NOT_FOUND'
     if not api_key:
+        print("Api key not found, using fallback generator.")
         return _fallback_generate(goal)
 
     try:
         # Lazy import to avoid dependency issues when API key isn't provided
-        import google.generativeai as genai
+        from google import genai
+        import json
 
-        genai.configure(api_key=api_key)
+        client = genai.Client(api_key=api_key)
 
         prompt = (
             "You are an assistant that turns a vague goal into exactly 5 concise, "
-            "actionable sub-tasks and a complexity score from 1-10. Respond with JSON "
-            "object with keys: steps (array of 5 strings) and complexity (int).\n"
-            f"Goal: {goal}\n\nOutput JSON:"
+            "actionable sub-tasks and a complexity score from 1-10. Respond ONLY with a JSON "
+            "object with keys: steps (array of 5 strings) and complexity (int). No markdown, no explanation.\n\n"
+            f"Goal: {goal}\n\nJSON:"
         )
 
-        # Use the text generation client. This is a lightweight example and may
-        # need adjustment depending on the installed version of the library.
-        response = genai.generate_text(model="gemini-lite", prompt=prompt, max_output_tokens=512)
-        text = getattr(response, "text", None) or response
-
-        import json
+        # Generate content using the new API
+        response =  client.models.generate_content(
+            model="gemini-2.5-flash", contents=prompt
+        )   
+        
+        text = response.text.strip()
+        
+        # debug
+        print(f"Gemini response text: {text}")
 
         # Try to extract JSON from the response text.
-        first_brace = str(text).find('{')
+        # Remove markdown code blocks if present
+        if text.startswith('```json'):
+            text = text[7:]
+        if text.startswith('```'):
+            text = text[3:]
+        if text.endswith('```'):
+            text = text[:-3]
+        text = text.strip()
+
+        first_brace = text.find('{')
         if first_brace >= 0:
-            json_text = str(text)[first_brace:]
+            json_text = text[first_brace:]
+            last_brace = json_text.rfind('}')
+            if last_brace >= 0:
+                json_text = json_text[:last_brace + 1]
+            
             try:
                 data = json.loads(json_text)
                 # Basic validation
-                if isinstance(data.get("steps"), list) and isinstance(data.get("complexity"), int):
-                    return {"steps": data["steps"][:5], "complexity": max(1, min(10, data["complexity"]))}
+                if isinstance(data.get("steps"), list) and isinstance(data.get("complexity"), (int, float)):
+                    steps = data["steps"][:5]
+                    # Ensure we have exactly 5 steps
+                    while len(steps) < 5:
+                        steps.append(f"Additional action for: {goal}")
+                    complexity = max(1, min(10, int(data["complexity"])))
+                    return {"steps": steps, "complexity": complexity}
             except Exception:
                 pass
 
         # If parsing failed, fall back to deterministic generator
         return _fallback_generate(goal)
 
-    except Exception:
+    except Exception as e:
+        print(f"Error generating with Gemini: {e}")
         return _fallback_generate(goal)
 
 

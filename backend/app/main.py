@@ -5,8 +5,13 @@ from . import ai
 from . import models
 from .db import engine, Base, get_db
 from typing import List
+from sqlalchemy import text
+import time
 
 Base.metadata.create_all(bind=engine)
+
+# Record start time for uptime reporting
+START_TIME = time.time()
 
 app = FastAPI(title="Smart Goal Breaker")
 
@@ -51,6 +56,49 @@ def create_goal(payload: models.GoalCreate, db: Session = Depends(get_db)):
 def list_goals(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
 	items = db.query(models.Goal).order_by(models.Goal.created_at.desc()).offset(skip).limit(limit).all()
 	return items
+
+
+@app.get("/goals/user/{user_id}", response_model=List[models.GoalRead])
+def list_goals_by_user(user_id: str, skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
+	"""Get all goals for a specific user"""
+	items = db.query(models.Goal).filter(models.Goal.user_id == user_id).order_by(models.Goal.created_at.desc()).offset(skip).limit(limit).all()
+	return items
+
+
+@app.get("/goals/{goal_id}", response_model=models.GoalRead)
+def get_goal(goal_id: int, db: Session = Depends(get_db)):
+	"""Get a specific goal by ID"""
+	goal = db.query(models.Goal).filter(models.Goal.id == goal_id).first()
+	if not goal:
+		raise HTTPException(status_code=404, detail="Goal not found")
+	return goal
+
+
+@app.delete("/goals/{goal_id}")
+def delete_goal(goal_id: int, db: Session = Depends(get_db)):
+	"""Delete a specific goal by ID"""
+	goal = db.query(models.Goal).filter(models.Goal.id == goal_id).first()
+	if not goal:
+		raise HTTPException(status_code=404, detail="Goal not found")
+	
+	db.delete(goal)
+	db.commit()
+	return {"message": "Goal deleted successfully", "id": goal_id}
+
+
+@app.get("/health")
+def health(db: Session = Depends(get_db)):
+	"""Lightweight health check: returns status, uptime (seconds), and DB connectivity."""
+	uptime = int(time.time() - START_TIME)
+	db_ok = True
+	try:
+		# simple no-op query to validate DB connection
+		db.execute(text("SELECT 1"))
+	except Exception:
+		db_ok = False
+
+	status = "ok" if db_ok else "degraded"
+	return {"status": status, "uptime_seconds": uptime, "db": db_ok}
 
 
 if __name__ == "__main__":
