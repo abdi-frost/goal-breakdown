@@ -43,6 +43,21 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <QueryProvider>{children}</QueryProvider>
+          <header className="fixed top-3 right-3 z-50">
+            <div className="rounded-lg bg-zinc-900/60 px-3 py-1 text-xs text-zinc-400 backdrop-blur-sm shadow-sm">
+              <span className="hidden sm:inline">Developed by Abdi — </span>
+              <a
+                href="https://github.com/abdi-frost"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-1 font-medium text-violet-400 hover:underline"
+              >
+                <span className="sr-only">GitHub profile</span>
+                <span className="inline sm:hidden">@abdi-frost</span>
+                <span className="hidden sm:inline">@abdi-frost</span>
+              </a>
+            </div>
+          </header>
       </body>
     </html>
   );
