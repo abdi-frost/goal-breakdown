@@ -1,6 +1,7 @@
 {
   "name": "frontend",
   "version": "0.1.0",
+  "description": "AI-powered goal breakdown application - Frontend using Next.js and React to help transform ambitious goals into actionable steps",
   "private": true,
   "scripts": {
     "dev": "next dev",
