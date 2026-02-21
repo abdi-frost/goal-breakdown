@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from . import ai
 from . import models
 from .db import engine, Base, get_db
@@ -52,10 +53,24 @@ def create_goal(payload: models.GoalCreate, db: Session = Depends(get_db)):
 	return goal_obj
 
 
-@app.get("/goals", response_model=List[models.GoalRead])
-def list_goals(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
-	items = db.query(models.Goal).order_by(models.Goal.created_at.desc()).offset(skip).limit(limit).all()
-	return items
+@app.get("/goals", response_model=models.GoalListResponse)
+def list_goals(skip: int = 0, limit: int = 30, search: str = "", db: Session = Depends(get_db)):
+	query = db.query(models.Goal)
+	if search:
+		term = f"%{search}%"
+		query = query.filter(
+			or_(
+				models.Goal.goal_text.ilike(term),
+				models.Goal.step_one.ilike(term),
+				models.Goal.step_two.ilike(term),
+				models.Goal.step_three.ilike(term),
+				models.Goal.step_four.ilike(term),
+				models.Goal.step_five.ilike(term),
+			)
+		)
+	total = query.count()
+	items = query.order_by(models.Goal.created_at.desc()).offset(skip).limit(limit).all()
+	return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 
 @app.get("/goals/user/{user_id}", response_model=List[models.GoalRead])
