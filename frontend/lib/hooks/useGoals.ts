@@ -53,6 +53,26 @@ export function useCreateGoal() {
   });
 }
 
+export type GoalListResponse = {
+  items: Goal[];
+  total: number;
+  skip: number;
+  limit: number;
+};
+
+export function useAllGoals(search: string, skip: number, limit: number = 30) {
+  return useQuery({
+    queryKey: ["goals-all", search, skip, limit],
+    queryFn: async () => {
+      const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+      if (search) params.set("search", search);
+      const res = await fetch(`${apiBase}/goals?${params.toString()}`);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json() as Promise<GoalListResponse>;
+    },
+  });
+}
+
 export function useDeleteGoal() {
   const qc = useQueryClient();
   const userToken = typeof window !== "undefined" ? getUserToken() : "";

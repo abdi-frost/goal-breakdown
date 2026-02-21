@@ -41,6 +41,13 @@ class GoalRead(BaseModel):
 		orm_mode = True
 
 
+class GoalListResponse(BaseModel):
+	items: List["GoalRead"]
+	total: int
+	skip: int
+	limit: int
+
+
 class AIGenerationResult(BaseModel):
 	steps: List[str]
 	complexity: int
